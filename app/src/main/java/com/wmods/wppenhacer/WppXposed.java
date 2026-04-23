@@ -37,7 +37,11 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
     public static XSharedPreferences getPref() {
         if (pref == null) {
             pref = new XSharedPreferences(BuildConfig.APPLICATION_ID, BuildConfig.APPLICATION_ID + "_preferences");
-            pref.makeWorldReadable();
+            try {
+                pref.makeWorldReadable();
+            } catch (Throwable ignored) {
+                // Ignore SecurityExceptions or UnsupportedOperationExceptions on Android 7.0+
+            }
             pref.reload();
         }
         return pref;

@@ -99,6 +99,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -115,7 +116,7 @@ public class FeatureLoader {
     public final static String PACKAGE_WPP = "com.whatsapp";
     public final static String PACKAGE_BUSINESS = "com.whatsapp.w4b";
 
-    private static final ArrayList<ErrorItem> list = new ArrayList<>();
+    private static final List<ErrorItem> list = new CopyOnWriteArrayList<>();
     private static List<String> supportedVersions;
     private static String currentVersion;
 
@@ -398,33 +399,29 @@ public class FeatureLoader {
                 RecoverDeleteForMe.class
         };
         XposedBridge.log("Loading Plugins");
-        var executorService = Executors.newWorkStealingPool(Math.min(Runtime.getRuntime().availableProcessors(), 4));
         var times = new ArrayList<String>();
         for (var classe : classes) {
-            CompletableFuture.runAsync(() -> {
-                var timemillis = System.currentTimeMillis();
-                try {
-                    var constructor = classe.getConstructor(ClassLoader.class, XSharedPreferences.class);
-                    var plugin = (Feature) constructor.newInstance(loader, pref);
-                    plugin.doHook();
-                } catch (Throwable e) {
-                    XposedBridge.log(e);
-                    var error = new ErrorItem();
-                    error.setPluginName(classe.getSimpleName());
-                    error.setWhatsAppVersion(versionWpp);
-                    error.setModuleVersion(BuildConfig.VERSION_NAME);
-                    error.setMessage(e.getMessage());
-                    error.setError(Arrays.toString(Arrays.stream(e.getStackTrace()).filter(
-                            s -> !s.getClassName().startsWith("android") && !s.getClassName().startsWith("com.android"))
-                            .map(StackTraceElement::toString).toArray()));
-                    list.add(error);
-                }
-                var timemillis2 = System.currentTimeMillis() - timemillis;
-                times.add("* Loaded Plugin " + classe.getSimpleName() + " in " + timemillis2 + "ms");
-            }, executorService);
+            var timemillis = System.currentTimeMillis();
+            try {
+                var constructor = classe.getConstructor(ClassLoader.class, XSharedPreferences.class);
+                var plugin = (Feature) constructor.newInstance(loader, pref);
+                plugin.doHook();
+            } catch (Throwable e) {
+                XposedBridge.log(e);
+                var error = new ErrorItem();
+                error.setPluginName(classe.getSimpleName());
+                error.setWhatsAppVersion(versionWpp);
+                error.setModuleVersion(BuildConfig.VERSION_NAME);
+                error.setMessage(e.getMessage());
+                error.setError(Arrays.toString(Arrays.stream(e.getStackTrace()).filter(
+                        s -> !s.getClassName().startsWith("android") && !s.getClassName().startsWith("com.android"))
+                        .map(StackTraceElement::toString).toArray()));
+                list.add(error);
+            }
+            var timemillis2 = System.currentTimeMillis() - timemillis;
+            times.add("* Loaded Plugin " + classe.getSimpleName() + " in " + timemillis2 + "ms");
         }
-        executorService.shutdown();
-        executorService.awaitTermination(15, TimeUnit.SECONDS);
+        
         if (DebugFeature.DEBUG) {
             for (var time : times) {
                 if (time != null)
